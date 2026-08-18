@@ -1477,11 +1477,12 @@ const PCOLORS=[[.86,.30,.28],[.26,.55,.86],[.92,.74,.22],[.34,.72,.44],
 function hashName(x){let h=0;for(let i=0;i<x.length;i++)h=(h*31+x.charCodeAt(i))|0;return Math.abs(h);}
 const ICE=[
   {urls:"stun:stun.l.google.com:19302"},
-  {urls:"stun:stun1.l.google.com:19302"},
-  {urls:"stun:stun.cloudflare.com:3478"}
-  /* Los TURN gratis anónimos ya no existen. Para redes con NAT estricto,
-     añade aquí credenciales de un TURN (p.ej. el plan gratis de metered.ca):
-     ,{urls:"turn:XXX:443?transport=tcp",username:"USER",credential:"PASS"} */
+  {urls:"stun:stun.cloudflare.com:3478"},
+  {urls:"stun:stun.relay.metered.ca:80"},
+  {urls:"turn:global.relay.metered.ca:80",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turn:global.relay.metered.ca:80?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turn:global.relay.metered.ca:443",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turns:global.relay.metered.ca:443?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"}
 ];
 const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net"];
 let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,
