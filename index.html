@@ -1475,6 +1475,15 @@ requestAnimationFrame(frame);
 const PCOLORS=[[.86,.30,.28],[.26,.55,.86],[.92,.74,.22],[.34,.72,.44],
   [.72,.42,.86],[.90,.52,.24],[.30,.78,.72],[.88,.40,.62],[.60,.66,.30],[.52,.58,.70]];
 function hashName(x){let h=0;for(let i=0;i<x.length;i++)h=(h*31+x.charCodeAt(i))|0;return Math.abs(h);}
+const ICE=[
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun1.l.google.com:19302"},
+  {urls:"stun:stun.cloudflare.com:3478"}
+  /* Los TURN gratis anónimos ya no existen. Para redes con NAT estricto,
+     añade aquí credenciales de un TURN (p.ej. el plan gratis de metered.ca):
+     ,{urls:"turn:XXX:443?transport=tcp",username:"USER",credential:"PASS"} */
+];
+const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net"];
 let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,
   name:"",color:PCOLORS[0],host:false,on:false};
 const peers={};
@@ -1499,9 +1508,9 @@ async function startNet(name,room,host){
   net.name=name;net.host=host;net.color=PCOLORS[hashName(name)%PCOLORS.length];
   paintScores();
   try{
-    const T=await import("https://esm.sh/trystero@0.21.5/torrent");
+    const T=await import("https://esm.sh/trystero@0.21.5/nostr");
     net.self=T.selfId;
-    const r=T.joinRoom({appId:"tecnetsoc-quiz-v1"},room);
+    const r=T.joinRoom({appId:"tecnetsoc-quiz-v1",relayUrls:RELAYS,rtcConfig:{iceServers:ICE}},room);
     net.room=r;
     const [sHi,gHi]=r.makeAction("hi");    net.sendHi=sHi;
     const [sPos,gPos]=r.makeAction("pos");  net.sendPos=sPos;
