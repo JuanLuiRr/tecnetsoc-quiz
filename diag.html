@@ -1,0 +1,112 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Diagnóstico P2P · TecnetSOC</title>
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#0a1120;color:#dbe7ff;font-family:system-ui,-apple-system,Segoe UI,sans-serif;
+    padding:1rem;font-size:1.05rem;line-height:1.5;max-width:40rem;margin:0 auto}
+  h1{font-size:1.25rem;color:#67e8f9;margin:.2rem 0 .4rem}
+  h3{margin:1.1rem 0 .3rem;font-size:.85rem;letter-spacing:.1em;text-transform:uppercase;color:#7f9cc8}
+  p{color:#9db4d8;margin:.3rem 0 .8rem;font-size:.95rem}
+  .big{font-size:1.4rem;font-weight:700;margin:.8rem 0;padding:.9rem;border-radius:.6rem;text-align:center}
+  .yes{background:#0d3b1e;color:#66ffa6} .no{background:#3b0d12;color:#ff7b7b} .wait{background:#16243e;color:#9db4d8}
+  .ok{color:#66ffa6;font-weight:700} .bad{color:#ff7b7b;font-weight:700}
+  .row{margin:.25rem 0} code{background:#111a2e;padding:.1rem .35rem;border-radius:.25rem;font-size:.92em}
+  #relays div,#peers div{font-family:ui-monospace,monospace;font-size:.92rem;margin:.15rem 0}
+  #count{display:inline-block;min-width:1.6em;text-align:center;background:#16243e;border-radius:.4rem;padding:.05rem .4rem}
+  .hint{font-size:.85rem;color:#9db4d8;margin-top:.6rem}
+</style>
+
+<h1>Diagnóstico P2P · TecnetSOC</h1>
+<p>Abre <b>esta misma página</b> en los dos dispositivos. Se unen solos a la misma sala. Espera ~20 s sin cerrar.</p>
+
+<div id="verdict" class="big wait">Iniciando…</div>
+
+<div class="row">Mi id: <code id="me">—</code></div>
+<div class="row">Sala fija: <code>tnq-diag-8271</code></div>
+
+<h3>1 · Relays (señalización)</h3>
+<div id="relays">probando…</div>
+
+<h3>2 · WebRTC / TURN</h3>
+<div id="ice">probando…</div>
+
+<h3>3 · Otros dispositivos que veo: <span id="count">0</span></h3>
+<div id="peers"><i>ninguno todavía</i></div>
+<div class="hint" id="clock"></div>
+
+<script type="module">
+const $=id=>document.getElementById(id);
+const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://nostr.mom"];
+const ICE=[
+  {urls:"stun:stun.l.google.com:19302"},
+  {urls:"stun:stun.cloudflare.com:3478"},
+  {urls:"stun:stun.relay.metered.ca:80"},
+  {urls:"turn:global.relay.metered.ca:80",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turn:global.relay.metered.ca:80?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turn:global.relay.metered.ca:443",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
+  {urls:"turns:global.relay.metered.ca:443?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"}
+];
+
+const state={relays:{},turn:null,peers:{},joined:false,t0:Date.now()};
+
+/* ---- 1. probar cada relay ---- */
+const relBox=$("relays"); relBox.innerHTML="";
+RELAYS.forEach(url=>{
+  const short=url.replace("wss://","");
+  const d=document.createElement("div"); d.textContent=short+" … "; relBox.appendChild(d);
+  let done=false,ws;
+  const fin=(ok,txt)=>{ if(done)return; done=true; state.relays[short]=ok;
+    d.innerHTML=short+' <span class="'+(ok?"ok":"bad")+'">'+txt+'</span>'; try{ws&&ws.close()}catch(e){} };
+  try{ ws=new WebSocket(url);}catch(e){ return fin(false,"✗"); }
+  const to=setTimeout(()=>fin(false,"✗ timeout"),7000);
+  ws.onopen=()=>{clearTimeout(to);fin(true,"✓");};
+  ws.onerror=()=>{clearTimeout(to);fin(false,"✗ bloqueado");};
+});
+
+/* ---- 2. probar ICE / TURN ---- */
+(function(){
+  const pc=new RTCPeerConnection({iceServers:ICE}); const types=new Set();
+  pc.onicecandidate=e=>{ if(e.candidate){const m=e.candidate.candidate.match(/typ (\w+)/); if(m)types.add(m[1]);} };
+  pc.createDataChannel("x"); pc.createOffer().then(o=>pc.setLocalDescription(o));
+  setTimeout(()=>{ const relay=types.has("relay"); state.turn=relay;
+    $("ice").innerHTML="candidatos: "+([...types].join(", ")||"ninguno")+
+      ' · TURN: <span class="'+(relay?"ok":"bad")+'">'+(relay?"✓ funciona":"✗ no")+'</span>';
+    try{pc.close()}catch(e){} },7000);
+})();
+
+/* ---- 3. P2P real: unirse a la sala fija y ver quién más está ---- */
+try{
+  const {joinRoom,selfId}=await import("https://esm.sh/trystero@0.21.5/nostr");
+  $("me").textContent=selfId.slice(0,10);
+  const room=joinRoom({appId:"tecnetsoc-quiz-v1",relayUrls:RELAYS,rtcConfig:{iceServers:ICE}},"tnq-diag-8271");
+  state.joined=true;
+  const [sendHi,getHi]=room.makeAction("hi");
+  function refresh(){
+    const ids=Object.keys(state.peers);
+    $("count").textContent=ids.length;
+    $("peers").innerHTML=ids.length? ids.map(id=>"• "+id.slice(0,10)+" — "+(state.peers[id]||"?")).join("<br>")
+                                   : "<i>ninguno todavía</i>";
+  }
+  room.onPeerJoin(id=>{ state.peers[id]="conectando…"; sendHi("hola"); refresh(); });
+  room.onPeerLeave(id=>{ delete state.peers[id]; refresh(); });
+  getHi((data,id)=>{ state.peers[id]="✓ CONECTADO"; refresh(); });
+  setInterval(()=>{ if(sendHi)sendHi("ping"); },4000);   // reanuncio
+}catch(e){ $("verdict").className="big no"; $("verdict").textContent="Error cargando la red: "+e.message; }
+
+/* ---- veredicto en vivo ---- */
+setInterval(()=>{
+  const secs=Math.floor((Date.now()-state.t0)/1000);
+  $("clock").textContent="tiempo: "+secs+"s";
+  const n=Object.keys(state.peers).length;
+  const v=$("verdict");
+  if(n>0){ v.className="big yes"; v.textContent="✓ ¡SE VEN! La comunicación P2P funciona ("+n+")"; return; }
+  if(secs<22){ v.className="big wait"; v.textContent="Buscando al otro dispositivo… ("+secs+"s)"; return; }
+  // sin peers tras 22s: diagnosticar
+  const relOk=Object.values(state.relays).filter(Boolean).length;
+  v.className="big no";
+  if(relOk===0) v.textContent="✗ Tu red bloquea la señalización (0 relays). Prueba otra red.";
+  else if(state.turn===false) v.textContent="✗ No hay TURN y no se encontraron. Red muy restrictiva.";
+  else v.textContent="✗ No se encontraron, pese a relays ✓ y TURN ✓. Es el emparejamiento.";
+},1000);
+</script>
