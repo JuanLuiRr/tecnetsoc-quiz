@@ -152,7 +152,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 4 · nostr+turn</div>
+  <div id="build">build 5 · nostr+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -212,7 +212,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 4 (nostr + TURN metered)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 5 (nostr + TURN, fixes P2P)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1521,13 +1521,14 @@ async function startNet(name,room,host){
     const [sQ,gQ]=r.makeAction("q");        net.sendQ=sQ;
     const [sRev,gRev]=r.makeAction("rev");  net.sendRev=sRev;
     const [sSc,gSc]=r.makeAction("score");  net.sendScore=sSc;
-    gHi((d,id)=>{const pr=addPeer(id,d[0],d[1]);pr.name=d[0];pr.color=d[1];pr.fig.cloth=d[1];
+    gHi((d,id)=>{const pr=peers[id];if(!pr)return;pr.name=d[0];pr.color=d[1];pr.fig.cloth=d[1];
       if(pr.el)pr.el.querySelector("span").textContent=d[0];paintScores();});
-    gPos((d,id)=>{const pr=peers[id]||addPeer(id);pr.tx=d[0];pr.ty=d[1];pr.tz=d[2];pr.tyaw=d[3];});
-    gSc((d,id)=>{const pr=peers[id]||addPeer(id,d[0]);pr.name=d[0];pr.score=d[1];paintScores();});
-    gQ((d,id)=>onQuestion(d[0],d[1],d[2],d[3]));
-    gRev((d,id)=>onReveal(d[0],d[1]));
+    gPos((d,id)=>{const pr=peers[id];if(!pr)return;pr.tx=d[0];pr.ty=d[1];pr.tz=d[2];pr.tyaw=d[3];});
+    gSc((d,id)=>{const pr=peers[id];if(!pr)return;pr.name=d[0];pr.score=d[1];paintScores();});
+    gQ((d,id)=>{if(net.host)return;onQuestion(d[0],d[1],d[2],d[3]);});
+    gRev((d,id)=>{if(net.host)return;onReveal(d[0],d[1]);});
     r.onPeerJoin(id=>{
+      addPeer(id);                                       /* entra ya al marcador; hi/pos lo completan */
       if(net.sendHi)net.sendHi([net.name,net.color]);
       if(net.sendScore)net.sendScore([net.name,myScore]);
       if(net.host&&qActive&&!revealed&&curQOpts){        /* pregunta en curso -> ponerlo al día */
@@ -1537,13 +1538,16 @@ async function startNet(name,room,host){
     });
     r.onPeerLeave(id=>dropPeer(id));
     net.on=true;
+    setInterval(function(){ if(!net.on)return;
+      if(net.sendHi)net.sendHi([net.name,net.color]);
+      if(net.sendScore)net.sendScore([net.name,myScore]); },4000);
     document.getElementById("connect").classList.remove("on");
     if(host)document.getElementById("hostbar").classList.add("on");
   }catch(e){document.getElementById("connect").innerHTML="<div>No se pudo conectar: "+e.message+"</div>";}
 }
 let posAcc=0;
 function netTick(dt){
-  if(!net.on||!net.sendPos)return;
+  if(!net.on||!net.sendPos||dead)return;
   posAcc+=dt;
   if(posAcc>=.07){posAcc=0;
     net.sendPos([+P.x.toFixed(2),+P.y.toFixed(2),+P.z.toFixed(2),+P.yaw.toFixed(2)]);}
