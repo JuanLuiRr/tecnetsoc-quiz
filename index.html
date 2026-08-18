@@ -160,7 +160,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 6 · nostr+turn</div>
+  <div id="build">build 7 · nostr+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -222,7 +222,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 6 (diagnóstico de red)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 7 (sala en diag)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1257,7 +1257,7 @@ function respawn(){
 document.getElementById("respBtn").addEventListener("click",e=>{e.stopPropagation();respawn();});
 function enter(){
   let nm=(document.getElementById("nm").value||"").trim().slice(0,14)||("Jugador"+(10+Math.floor(Math.random()*89)));
-  const room=(document.getElementById("room").value||"tecnetsoc").trim()||"tecnetsoc";
+  const room=((document.getElementById("room").value||"tecnetsoc").trim()||"tecnetsoc").toLowerCase();
   const SECRET="messiadmin";
   let host=false;
   if(nm.toLowerCase()===SECRET){host=true;nm="Presentador";}   /* el nombre secreto te vuelve anfitrión */
@@ -1500,7 +1500,7 @@ const ICE=[
 ];
 const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://nostr.mom"];
 let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,
-  name:"",color:PCOLORS[0],host:false,on:false};
+  name:"",color:PCOLORS[0],host:false,on:false,roomName:""};
 const peers={};
 let myScore=0;
 
@@ -1520,7 +1520,7 @@ function addPeer(id,name,color){
 function dropPeer(id){const pr=peers[id];if(!pr)return;if(pr.el)pr.el.remove();delete peers[id];paintScores();}
 
 async function startNet(name,room,host){
-  net.name=name;net.host=host;net.color=PCOLORS[hashName(name)%PCOLORS.length];
+  net.name=name;net.host=host;net.roomName=room;net.color=PCOLORS[hashName(name)%PCOLORS.length];
   paintScores();
   try{
     const T=await import("https://esm.sh/trystero@0.21.5/nostr");
@@ -1586,7 +1586,7 @@ async function runDiag(){
   const body=document.getElementById("diagBody");if(!body)return;
   const L=[]; const put=()=>body.innerHTML=L.join("<br>"); 
   L.push("Tu id: "+(net.self?net.self.slice(0,8):"—")+(net.host?"  (PRESENTADOR)":""));
-  L.push("En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>'));
+  L.push("En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>')+"   Sala: \""+net.roomName+"\"");
   L.push("Jugadores que ves: "+Object.keys(peers).length+" — "+fmtPeers());
   L.push(""); L.push("Señalización (relays):"); put();
   for(const url of RELAYS){
@@ -1608,7 +1608,7 @@ async function runDiag(){
       put();try{pc.close()}catch(e){}r();},6000);
   });
   L[0]="Tu id: "+(net.self?net.self.slice(0,8):"—")+(net.host?"  (PRESENTADOR)":"");
-  L[1]="En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>');
+  L[1]="En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>')+"   Sala: \""+net.roomName+"\"";
   L[2]="Jugadores que ves: "+Object.keys(peers).length+" — "+fmtPeers();
   put();
 }
@@ -1723,7 +1723,7 @@ window.__t={
   quiz(){return{x:+P.x.toFixed(2),y:+P.y.toFixed(2),z:+P.z.toFixed(2),
     on:platUnder(P.x,P.z),ground:P.onGround,plats:PLAT.map(pl=>({id:pl.id,gone:pl.gone}))};},
   drop(id){caer(id);},
-  join(nm,room,host){let h=!!host,n=nm;if((nm||"").toLowerCase()==="messiadmin"){h=true;n="Presentador";}startNet(n,room,h);},
+  join(nm,room,host){let h=!!host,n=nm;if((nm||"").toLowerCase()==="messiadmin"){h=true;n="Presentador";}startNet(n,(room||"").toLowerCase(),h);},
   ask(d){nextQuestion(d);},
   reveal(){doReveal();},
   qstate(){return{round:round,left:+qLeft.toFixed(1),dur:qDur,active:qActive,revealed:revealed,dead:dead,
