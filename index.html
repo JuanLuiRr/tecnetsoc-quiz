@@ -111,6 +111,14 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 #scores li{display:flex;justify-content:space-between;gap:.6rem;font-family:var(--machine);font-size:.82rem;letter-spacing:.05em;color:var(--graphite)}
 #scores li.me{color:var(--paper)}
 #scores li b{font-family:var(--data);color:var(--cyan)}
+#diag{position:absolute;left:50%;top:50%;translate:-50% -50%;width:min(30rem,92vw);display:none;z-index:20;
+  background:rgba(6,10,20,.96);border:1px solid var(--line);padding:1rem 1.1rem;font-family:var(--data);font-size:.82rem}
+#diag.on{display:block}
+#diag h3{font-family:var(--machine);font-size:.72rem;letter-spacing:.2em;text-transform:uppercase;color:var(--blue);margin-bottom:.6rem;display:flex;justify-content:space-between}
+#diag #diagX{cursor:pointer;color:var(--graphite)}
+#diag #diagBody{line-height:1.6;white-space:pre-wrap}
+#diag .ok{color:var(--ok)} #diag .bad{color:var(--alarm)}
+#diag .dtip{margin-top:.7rem;font-family:var(--machine);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--graphite)}
 #hostbar{left:50%;bottom:3.2rem;translate:-50% 0;display:none;font-family:var(--machine);font-size:.74rem;
   letter-spacing:.16em;text-transform:uppercase;color:var(--warn);border:1px solid rgba(244,183,64,.4);
   background:rgba(5,9,18,.85);padding:.35rem .9rem}
@@ -152,7 +160,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 5 · nostr+turn</div>
+  <div id="build">build 6 · nostr+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -182,6 +190,8 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="connect"><div>Conectando a la sala…<br><span style="font-size:.7em;color:var(--graphite)">(unos segundos)</span></div></div>
   <aside id="scores"><h3>Puntos</h3><ol id="scoreList"></ol></aside>
+  <div id="diag"><h3>Diagnóstico de red <span id="diagX">✕</span></h3><div id="diagBody">…</div>
+    <div class="dtip">Pulsa <b>I</b> para abrir/cerrar. Mándale una foto de esto a quien no conecte.</div></div>
   <div class="hud" id="hostbar">Presentador · <kbd>Enter</kbd> siguiente pregunta · <kbd>R</kbd> revelar ya</div>
   <div id="qpanel"><div id="qtext"></div><div id="qopts"></div><div id="qbar"><i id="qfill"></i></div></div>
 
@@ -212,7 +222,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 5 (nostr + TURN, fixes P2P)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 6 (diagnóstico de red)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1277,6 +1287,7 @@ addEventListener("keydown",e=>{
   if(dead){if(k===" "||k==="enter")respawn();return;}
   if((k==="enter"||k==="arrowright")&&net.host)nextQuestion();
   if(k==="r"&&net.host)doReveal();
+  if(k==="i"){toggleDiag();return;}
   if(k==="m"){muted=!muted;if(master)master.gain.value=muted?0:.55;
     document.getElementById("muteTag").classList.toggle("on",muted);}
   if(k==="f"&&net.host){fly=!fly;P.vy=0;
@@ -1487,7 +1498,7 @@ const ICE=[
   {urls:"turn:global.relay.metered.ca:443",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"},
   {urls:"turns:global.relay.metered.ca:443?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"}
 ];
-const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net"];
+const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://nostr.mom"];
 let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,
   name:"",color:PCOLORS[0],host:false,on:false};
 const peers={};
@@ -1538,6 +1549,7 @@ async function startNet(name,room,host){
     });
     r.onPeerLeave(id=>dropPeer(id));
     net.on=true;
+    setTimeout(function(){ if(net.on&&Object.keys(peers).length===0&&!diagOn)toggleDiag(); },15000);
     setInterval(function(){ if(!net.on)return;
       if(net.sendHi)net.sendHi([net.name,net.color]);
       if(net.sendScore)net.sendScore([net.name,myScore]); },4000);
@@ -1567,6 +1579,41 @@ function drawPeers(dt){
       else pr.el.style.opacity=0;}
   }
 }
+let diagOn=false;
+function fmtPeers(){const ns=Object.keys(peers).map(id=>peers[id].name);
+  return ns.length?ns.join(", "):"(ninguno todavía)";}
+async function runDiag(){
+  const body=document.getElementById("diagBody");if(!body)return;
+  const L=[]; const put=()=>body.innerHTML=L.join("<br>"); 
+  L.push("Tu id: "+(net.self?net.self.slice(0,8):"—")+(net.host?"  (PRESENTADOR)":""));
+  L.push("En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>'));
+  L.push("Jugadores que ves: "+Object.keys(peers).length+" — "+fmtPeers());
+  L.push(""); L.push("Señalización (relays):"); put();
+  for(const url of RELAYS){
+    const i=L.length; L.push("  "+url.replace("wss://","")+" … "); put();
+    await new Promise(r=>{let done=false,ws;
+      const fin=(txt)=>{if(done)return;done=true;L[i]="  "+url.replace("wss://","")+" "+txt;put();try{ws&&ws.close()}catch(e){}r();};
+      try{ws=new WebSocket(url);}catch(e){return fin('<span class=bad>✗</span>');}
+      const to=setTimeout(()=>fin('<span class=bad>✗ (timeout)</span>'),6000);
+      ws.onopen=()=>{clearTimeout(to);fin('<span class=ok>✓</span>');};
+      ws.onerror=()=>{clearTimeout(to);fin('<span class=bad>✗ (bloqueado)</span>');};
+    });
+  }
+  L.push(""); L.push("WebRTC / TURN:"); const ii=L.length; L.push("  probando…"); put();
+  await new Promise(r=>{const pc=new RTCPeerConnection({iceServers:ICE});const t=new Set();
+    pc.onicecandidate=e=>{if(e.candidate){const m=e.candidate.candidate.match(/typ (\w+)/);if(m)t.add(m[1]);}};
+    pc.createDataChannel("x");pc.createOffer().then(o=>pc.setLocalDescription(o));
+    setTimeout(()=>{const rel=t.has("relay");
+      L[ii]="  candidatos: "+([...t].join(", ")||"ninguno")+"  ·  TURN: "+(rel?'<span class=ok>✓</span>':'<span class=bad>✗</span>');
+      put();try{pc.close()}catch(e){}r();},6000);
+  });
+  L[0]="Tu id: "+(net.self?net.self.slice(0,8):"—")+(net.host?"  (PRESENTADOR)":"");
+  L[1]="En sala: "+(net.on?'<span class=ok>sí</span>':'<span class=bad>no</span>');
+  L[2]="Jugadores que ves: "+Object.keys(peers).length+" — "+fmtPeers();
+  put();
+}
+function toggleDiag(){diagOn=!diagOn;const d=document.getElementById("diag");
+  d.classList.toggle("on",diagOn);if(diagOn)runDiag();}
 function paintScores(){
   const el=document.getElementById("scoreList");if(!el)return;
   const rows=[{name:(net.name||"tú")+" (tú)",score:myScore,me:1}];
