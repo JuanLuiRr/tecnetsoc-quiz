@@ -166,7 +166,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 9 · torrent+turn</div>
+  <div id="build">build 10 · torrent+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -176,7 +176,6 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
     <span><kbd>W A S D</kbd>caminar</span>
     <span><kbd>ratón</kbd>mirar</span>
     <span><kbd>Espacio</kbd>saltar</span>
-    <span><kbd>F</kbd>volar</span>
     <span><kbd>M</kbd>silencio</span>
   </div>
 
@@ -198,7 +197,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
   <aside id="scores"><h3>Puntos</h3><ol id="scoreList"></ol></aside>
   <div id="diag"><h3>Diagnóstico de red <span id="diagX">✕</span></h3><div id="diagBody">…</div>
     <div class="dtip">Pulsa <b>I</b> para abrir/cerrar. Mándale una foto de esto a quien no conecte.</div></div>
-  <div class="hud" id="hostbar">Presentador · <kbd>Enter</kbd> siguiente pregunta · <kbd>R</kbd> revelar ya</div>
+  <div class="hud" id="hostbar">Presentador · <kbd>Enter</kbd> siguiente · <kbd>R</kbd> revelar · <kbd>F</kbd> volar</div>
   <div id="qpanel"><div id="qtext"></div><div id="qopts"></div><div id="qbar"><i id="qfill"></i></div></div>
 
   <div id="resume"><div class="card"><div class="t">Pausa</div><p>Clic para volver al juego</p></div></div>
@@ -228,7 +227,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 9 (pantalla de carga)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 10 (cielo + ajustes)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -483,11 +482,20 @@ function buildTextures(){
 
   /* cielo de día */
   TX.skyDay=tex(512,512,(x,w,h)=>{
-    x.fillStyle="#8fb6e8";x.fillRect(0,0,w,h);
-    for(let i=0;i<30;i++){
-      const cx=Math.random()*w,cy=Math.random()*h,r=40+Math.random()*110;
+    /* plano a propósito (un degradado marcaría las aristas del cubo);
+       nubes grandes y difusas en dos capas para dar profundidad */
+    x.fillStyle="#79a6df";x.fillRect(0,0,w,h);
+    x.fillStyle="rgba(150,185,230,.35)";x.fillRect(0,h*.55,w,h*.45);   /* franja baja apenas más clara */
+    for(let i=0;i<10;i++){                                   /* nubes grandes suaves */
+      const cx=Math.random()*w,cy=Math.random()*h,r=90+Math.random()*150;
       const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
-      g.addColorStop(0,"rgba(255,255,255,.55)");g.addColorStop(1,"rgba(255,255,255,0)");
+      g.addColorStop(0,"rgba(255,255,255,.42)");g.addColorStop(.6,"rgba(255,255,255,.14)");g.addColorStop(1,"rgba(255,255,255,0)");
+      x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,7);x.fill();
+    }
+    for(let i=0;i<16;i++){                                   /* jirones pequeños */
+      const cx=Math.random()*w,cy=Math.random()*h,r=30+Math.random()*60;
+      const g=x.createRadialGradient(cx,cy,0,cx,cy,r);
+      g.addColorStop(0,"rgba(255,255,255,.30)");g.addColorStop(1,"rgba(255,255,255,0)");
       x.fillStyle=g;x.beginPath();x.arc(cx,cy,r,0,7);x.fill();
     }
   });
@@ -614,7 +622,7 @@ function L(text,pos,cls,sub){const o={text:text,pos:pos,cls:cls||"mid",sub:sub||
 let H={};
 
 /* ── arena de plataformas flotantes sobre el mar de datos cifrados ── */
-let PLAT=[], SP={x:0,y:0,z:7};
+let PLAT=[], SP={x:0,y:0,z:7.5};
 function plataforma(id,x,z,w,d,col){
   const t=[Math.max(1,Math.round(w/3)),Math.max(1,Math.round(d/3))];
   const base=S({pos:[x,-.35,z],size:[w,.7,d],color:col.slice(),walk:true,tex:TX.concrete,tile:t});
@@ -630,8 +638,8 @@ function buildWorld(){
   /* el mar de datos cifrados, muy abajo: caer ahi = te atrapo el ransomware */
   S({pos:[0,-40,-4],size:[560,.6,560],color:[.16,.02,.03],emis:[.05,0,0]});
   /* base de espera / reaparicion, pegada al cuadro para poder entrar caminando */
-  S({pos:[0,-.35,7],size:[13,.7,5],color:[.16,.20,.28],walk:true,tex:TX.concrete,tile:[4,2]});
-  S({pos:[0,.03,7],size:[12.4,.1,4.5],color:[.22,.28,.38],walk:true,tex:TX.tile,tile:[3,1]});
+  S({pos:[0,-.35,7.5],size:[13,.7,5],color:[.16,.20,.28],walk:true,tex:TX.concrete,tile:[4,2]});
+  S({pos:[0,.03,7.5],size:[12.4,.1,4.5],color:[.22,.28,.38],walk:true,tex:TX.tile,tile:[3,1]});
   /* el cuadro de respuestas: 6x6 plataformas pequeñas */
   const N=6,pitch=3.4,sz=2.6;
   for(let r=0;r<N;r++)for(let c=0;c<N;c++){
@@ -1245,7 +1253,7 @@ function repeatBeat(){
 /* right at the balcony rail: any further back and the balcony's own edge
    occludes the floor of the house. Pitch measured, not guessed: at -0.31 the
    whole stage sits centred in a 637px-tall viewport. */
-const P={x:0,y:3,z:7,vy:0,yaw:0,pitch:-.16,onGround:false};
+const P={x:0,y:3,z:7.5,vy:0,yaw:0,pitch:-.16,onGround:false};
 const keys=Object.create(null);
 let locked=false,paused=true,fly=false,dead=false,joined=false;
 const gate=document.getElementById("gate");
@@ -1339,7 +1347,7 @@ function resize(){
   W=Math.max(1,cv.clientWidth);H2=Math.max(1,cv.clientHeight);
   cv.width=Math.round(W*dpr);cv.height=Math.round(H2*dpr);
   gl.viewport(0,0,cv.width,cv.height);
-  proj=persp(.98,W/H2,.1,320);   /* slightly long lens: frames the stage instead of the empty ground */
+  proj=persp(.98,W/H2,.2,800);   /* zfar amplio: el cubo del cielo cabe entero, sin recortes en las esquinas */
 }
 addEventListener("resize",resize);resize();
 gl.enable(gl.DEPTH_TEST);gl.enable(gl.CULL_FACE);gl.clearColor(.035,.048,.098,1);
@@ -1436,8 +1444,8 @@ function frame(now){
      y no escribe profundidad para que todo lo demás se dibuje encima */
   gl.uniform1f(U.uDay,day?1:0);
   gl.depthMask(false);gl.cullFace(gl.FRONT);
-  draw({pos:[P.x,0,P.z],size:[420,420,420],color:[1,1,1],
-    tex:day?TX.skyDay:TX.sky,tile:day?[2,2]:[3,3],unlit:true});
+  draw({pos:[P.x,0,P.z],size:[700,700,700],color:[1,1,1],
+    tex:day?TX.skyDay:TX.sky,tile:[1,1],unlit:true});
   gl.cullFace(gl.BACK);gl.depthMask(true);
 
   for(let i=0;i<statics.length;i++)if(!statics[i].hidden)draw(statics[i]);
