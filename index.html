@@ -174,7 +174,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 15 · torrent+turn</div>
+  <div id="build">build 16 · torrent+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -237,7 +237,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 15 (items con forma 3D)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 16 (penalizacion + ajustes)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1307,6 +1307,8 @@ let locked=false,paused=true,fly=false,dead=false,joined=false;
 const gate=document.getElementById("gate");
 function die(){
   if(dead)return;dead=true;
+  if(myScore>0){ myScore=Math.max(0,myScore-50);      /* caerse cuesta 50 (nunca negativo) */
+    if(net.sendScore)net.sendScore([net.name,myScore]); paintScores(); }
   P.x=0;P.y=14;P.z=15;P.pitch=-.55;P.vy=0;         /* pasas a mirar el tablero desde arriba */
   document.getElementById("dead").classList.add("on");
   if(document.exitPointerLock)document.exitPointerLock();
@@ -1665,7 +1667,7 @@ function netTick(dt){
 }
 /* items arrojables (autoridad del anfitrion) */
 const NITEMS=4;
-const ITEMCOL=[[.34,.58,.94],[.36,.78,.48],[.72,.40,.86],[.90,.55,.25]];
+const ITEMCOL=[[.96,.80,.22],[.36,.78,.48],[.72,.40,.86],[.90,.55,.25]];
 let items=[], itemsInit=false, itAcc=0;
 function spawnSpot(){ return {x:(Math.random()*11-5.5), z:7.5+(Math.random()*3-1.5)}; }
 function initItems(){ items=[]; for(let i=0;i<NITEMS;i++){const sp=spawnSpot();
@@ -1675,14 +1677,14 @@ function holderPos(id){ if(id===net.self)return {x:P.x,y:P.y,z:P.z,yaw:P.yaw};
   const pr=peers[id]; return pr?{x:pr.x,y:pr.y,z:pr.z,yaw:pr.yaw}:null; }
 function throwItem(i,dx,dz,thrower){ const it=items[i]; if(!it)return;
   it.held=null;it.flying=true;it.thrower=thrower;it.vx=dx*10;it.vz=dz*10;it.vy=4.8; }
-function applyKnock(kx,kz){ if(dead)return; P.knockX=(P.knockX||0)+kx; P.knockZ=(P.knockZ||0)+kz; if(P.onGround){P.vy=2.6;P.onGround=false;} }
+function applyKnock(kx,kz){ if(dead)return; P.knockX=(P.knockX||0)+kx; P.knockZ=(P.knockZ||0)+kz; if(P.onGround){P.vy=3.2;P.onGround=false;} }
 function hitCheck(i){ const it=items[i]; if(Math.hypot(it.vx,it.vz)<3.5)return;
   const T=[{id:net.self,x:P.x,y:P.y,z:P.z}];
   for(const id in peers)T.push({id:id,x:peers[id].x,y:peers[id].y,z:peers[id].z});
   for(let j=0;j<T.length;j++){ const t=T[j]; if(t.id===it.thrower)continue;
     if(Math.abs(it.y-(t.y+0.9))>1.3)continue;
     const dx=t.x-it.x,dz=t.z-it.z; if(dx*dx+dz*dz<0.85*0.85){
-      const d=Math.hypot(dx,dz)||1, kx=dx/d*8.5, kz=dz/d*8.5;
+      const d=Math.hypot(dx,dz)||1, kx=dx/d*12, kz=dz/d*12;
       if(t.id===net.self)applyKnock(kx,kz); else if(net.sendKnock)net.sendKnock([t.id,+kx.toFixed(2),+kz.toFixed(2)]);
       it.flying=false;it.vx*=.15;it.vz*=.15;it.thrower=null; break; } }
 }
