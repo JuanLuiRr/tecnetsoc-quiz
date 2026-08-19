@@ -129,6 +129,10 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
   letter-spacing:.16em;text-transform:uppercase;color:var(--warn);border:1px solid rgba(244,183,64,.4);
   background:rgba(5,9,18,.85);padding:.35rem .9rem}
 #hostbar.on{display:block}
+#waitMsg{left:50%;top:4.4rem;translate:-50% 0;display:none;font-family:var(--machine);font-size:.9rem;
+  letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);border:1px solid var(--line);
+  background:rgba(6,10,20,.9);padding:.5rem 1rem}
+#waitMsg.on{display:block}
 #hostbar kbd{font-family:var(--data);color:var(--cyan);border:1px solid rgba(103,232,249,.5);padding:0 .3rem;margin:0 .2rem}
 #qpanel{position:absolute;left:50%;top:4.2rem;translate:-50% 0;width:min(48rem,92vw);display:none;z-index:8;
   background:rgba(6,10,20,.92);border:1px solid var(--line);padding:.8rem 1rem}
@@ -167,7 +171,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 11 · torrent+turn</div>
+  <div id="build">build 12 · torrent+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -199,6 +203,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
   <div id="diag"><h3>Diagnóstico de red <span id="diagX">✕</span></h3><div id="diagBody">…</div>
     <div class="dtip">Pulsa <b>I</b> para abrir/cerrar. Mándale una foto de esto a quien no conecte.</div></div>
   <div class="hud" id="hostbar">Presentador · <kbd>Enter</kbd> siguiente · <kbd>R</kbd> revelar · <kbd>F</kbd> volar</div>
+  <div class="hud" id="waitMsg">Esperando la siguiente pregunta…</div>
   <div id="qpanel"><div id="qtext"></div><div id="qopts"></div><div id="qbar"><i id="qfill"></i></div></div>
 
   <div id="resume"><div class="card"><div class="t">Pausa</div><p>Clic para volver al juego</p></div></div>
@@ -228,7 +233,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 11 (colisiones + 5x5)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 12 (items + espera)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1254,7 +1259,7 @@ function repeatBeat(){
 /* right at the balcony rail: any further back and the balcony's own edge
    occludes the floor of the house. Pitch measured, not guessed: at -0.31 the
    whole stage sits centred in a 637px-tall viewport. */
-const P={x:0,y:3,z:7.5,vy:0,yaw:0,pitch:-.16,onGround:false};
+const P={x:0,y:3,z:7.5,vy:0,yaw:0,pitch:-.16,onGround:false,knockX:0,knockZ:0};
 const keys=Object.create(null);
 let locked=false,paused=true,fly=false,dead=false,joined=false;
 const gate=document.getElementById("gate");
@@ -1307,6 +1312,7 @@ addEventListener("keydown",e=>{
     document.getElementById("muteTag").classList.toggle("on",muted);}
   if(k==="f"&&net.host){fly=!fly;P.vy=0;
     document.getElementById("flyTag").classList.toggle("on",fly);}
+  if(k==="e")itemAction();
 });
 addEventListener("keyup",e=>{keys[e.key.toLowerCase()]=false;});
 
@@ -1401,6 +1407,8 @@ function frame(now){
     if(P.y<=fy){P.y=fy;P.vy=0;P.onGround=true;}
     pushOut();
     peerCollide();
+    if(P.knockX||P.knockZ){P.x+=P.knockX*dt;P.z+=P.knockZ*dt;
+      P.knockX*=.86;P.knockZ*=.86;if(Math.abs(P.knockX)<.15)P.knockX=0;if(Math.abs(P.knockZ)<.15)P.knockZ=0;}
   }
   P.x=Math.max(-60,Math.min(60,P.x));P.z=Math.max(-60,Math.min(60,P.z));
   if(P.y<-24&&!dead)die();
@@ -1462,7 +1470,7 @@ function frame(now){
   FAM.forEach(f=>{if(f.on){updateFig(f,dt);figure(f);}});
   OBRA.forEach(o=>{if(o.on){updateFig(o,dt);figure(o);}});
   drawNeo(dt);
-  drawPeers(dt);netTick(dt);updateQuiz(dt);
+  drawPeers(dt);netTick(dt);updateQuiz(dt);itemStep(dt);drawItems(dt);
 
   /* labels + declutter */
   const cand=[];
@@ -1515,7 +1523,7 @@ const ICE=[
   {urls:"turns:global.relay.metered.ca:443?transport=tcp",username:"efc582a4f9f1aa53fe561b84",credential:"nq8iOwUwBUTLn9Fc"}
 ];
 const RELAYS=["wss://relay.damus.io","wss://nos.lol","wss://relay.primal.net","wss://nostr.mom"];
-let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,
+let net={room:null,self:null,sendPos:null,sendHi:null,sendQ:null,sendRev:null,sendScore:null,sendPh:null,sendIact:null,sendItems:null,sendKnock:null,
   name:"",color:PCOLORS[0],host:false,on:false,roomName:""};
 const peers={};
 let myScore=0;
@@ -1548,6 +1556,19 @@ async function startNet(name,room,host){
     const [sQ,gQ]=r.makeAction("q");        net.sendQ=sQ;
     const [sRev,gRev]=r.makeAction("rev");  net.sendRev=sRev;
     const [sSc,gSc]=r.makeAction("score");  net.sendScore=sSc;
+    const [sPh,gPh]=r.makeAction("ph");     net.sendPh=sPh;
+    const [sIa,gIa]=r.makeAction("iact");   net.sendIact=sIa;
+    const [sIt,gIt]=r.makeAction("items");  net.sendItems=sIt;
+    const [sKn,gKn]=r.makeAction("knock");  net.sendKnock=sKn;
+    gIa((d,id)=>{ if(!net.host)return; const type=d[0],idx=d[1];
+      if(type==="grab"){ if(items[idx]&&!items[idx].held&&!items[idx].flying)items[idx].held=id; }
+      else if(type==="throw"){ if(items[idx]&&items[idx].held===id)throwItem(idx,d[2],d[3],id); } });
+    gIt((d,id)=>{ if(net.host)return;
+      for(let i=0;i<d.length;i++){ if(!items[i])items[i]={x:d[i][0],y:d[i][1],z:d[i][2],tx:d[i][0],ty:d[i][1],tz:d[i][2],held:null};
+        items[i].tx=d[i][0];items[i].ty=d[i][1];items[i].tz=d[i][2];items[i].held=d[i][3]||null; } });
+    gKn((d,id)=>{ if(d[0]===net.self)applyKnock(d[1],d[2]); });
+    gPh((d,id)=>{ if(net.host)return; gamePhase=d[0];
+      if(d[0]==="wait"||d[0]==="idle"){ resetPlats(); showWait(d[0]==="wait"); } else showWait(false); });
     gHi((d,id)=>{const pr=peers[id];if(!pr)return;pr.name=d[0];pr.color=d[1];pr.fig.cloth=d[1];
       if(pr.el)pr.el.querySelector("span").textContent=d[0];paintScores();});
     gPos((d,id)=>{const pr=peers[id];if(!pr)return;pr.tx=d[0];pr.ty=d[1];pr.tz=d[2];pr.tyaw=d[3];});
@@ -1558,6 +1579,7 @@ async function startNet(name,room,host){
       addPeer(id);                                       /* entra ya al marcador; hi/pos lo completan */
       if(net.sendHi)net.sendHi([net.name,net.color]);
       if(net.sendScore)net.sendScore([net.name,myScore]);
+      if(net.host&&net.sendPh)net.sendPh([gamePhase],id);   /* dile en qué fase va la partida */
       if(net.host&&qActive&&!revealed&&curQOpts){        /* pregunta en curso -> ponerlo al día */
         const rem=Math.max(2,(qDeadline-performance.now())/1000);
         setTimeout(function(){ if(net.host&&qActive&&!revealed)net.sendQ([curQText,curQOpts,curLetters,rem],id); },700);
@@ -1565,6 +1587,7 @@ async function startNet(name,room,host){
     });
     r.onPeerLeave(id=>dropPeer(id));
     net.on=true;
+    if(net.host)initItems();
     setTimeout(function(){ if(net.on&&Object.keys(peers).length===0&&!diagOn)toggleDiag(); },15000);
     setInterval(function(){ if(!net.on)return;
       if(net.sendHi)net.sendHi([net.name,net.color]);
@@ -1590,10 +1613,70 @@ function startConnectWatch(){
 }
 let posAcc=0;
 function netTick(dt){
-  if(!net.on||!net.sendPos||dead)return;
-  posAcc+=dt;
-  if(posAcc>=.07){posAcc=0;
-    net.sendPos([+P.x.toFixed(2),+P.y.toFixed(2),+P.z.toFixed(2),+P.yaw.toFixed(2)]);}
+  if(!net.on)return;
+  if(net.sendPos&&!dead){ posAcc+=dt;
+    if(posAcc>=.07){posAcc=0;
+      net.sendPos([+P.x.toFixed(2),+P.y.toFixed(2),+P.z.toFixed(2),+P.yaw.toFixed(2)]);} }
+  if(net.host&&net.sendItems&&itemsInit){ itAcc+=dt;
+    if(itAcc>=.06){itAcc=0;
+      net.sendItems(items.map(it=>[+it.x.toFixed(2),+it.y.toFixed(2),+it.z.toFixed(2),it.held||""])); } }
+}
+/* items arrojables (autoridad del anfitrion) */
+const NITEMS=5;
+const ITEMCOL=[[.96,.56,.2],[.4,.85,.55],[.96,.86,.35],[.62,.5,.96],[.96,.45,.62]];
+let items=[], itemsInit=false, itAcc=0;
+function spawnSpot(){ return {x:(Math.random()*11-5.5), z:7.5+(Math.random()*3-1.5)}; }
+function initItems(){ items=[]; for(let i=0;i<NITEMS;i++){const sp=spawnSpot();
+  items.push({x:sp.x,y:.6,z:sp.z,vx:0,vy:0,vz:0,held:null,flying:false,thrower:null,tx:sp.x,ty:.6,tz:sp.z});}
+  itemsInit=true; }
+function holderPos(id){ if(id===net.self)return {x:P.x,y:P.y,z:P.z,yaw:P.yaw};
+  const pr=peers[id]; return pr?{x:pr.x,y:pr.y,z:pr.z,yaw:pr.yaw}:null; }
+function throwItem(i,dx,dz,thrower){ const it=items[i]; if(!it)return;
+  it.held=null;it.flying=true;it.thrower=thrower;it.vx=dx*10;it.vz=dz*10;it.vy=4.8; }
+function applyKnock(kx,kz){ if(dead)return; P.knockX=(P.knockX||0)+kx; P.knockZ=(P.knockZ||0)+kz; }
+function hitCheck(i){ const it=items[i]; if(Math.hypot(it.vx,it.vz)<3.5)return;
+  const T=[{id:net.self,x:P.x,y:P.y,z:P.z}];
+  for(const id in peers)T.push({id:id,x:peers[id].x,y:peers[id].y,z:peers[id].z});
+  for(let j=0;j<T.length;j++){ const t=T[j]; if(t.id===it.thrower)continue;
+    if(Math.abs(it.y-(t.y+0.9))>1.3)continue;
+    const dx=t.x-it.x,dz=t.z-it.z; if(dx*dx+dz*dz<0.85*0.85){
+      const d=Math.hypot(dx,dz)||1, kx=dx/d*5.5, kz=dz/d*5.5;
+      if(t.id===net.self)applyKnock(kx,kz); else if(net.sendKnock)net.sendKnock([t.id,+kx.toFixed(2),+kz.toFixed(2)]);
+      it.flying=false;it.vx*=.15;it.vz*=.15;it.thrower=null; break; } }
+}
+function itemStep(dt){ if(!net.host||!itemsInit)return;
+  for(let i=0;i<items.length;i++){ const it=items[i];
+    if(it.held){ const h=holderPos(it.held); if(!h){it.held=null;}
+      else { const f=fwd(h.yaw||0); it.x=h.x+f[0]*.55; it.z=h.z+f[1]*.55; it.y=(h.y||0)+1.05; it.vx=it.vy=it.vz=0; }
+      continue; }
+    if(it.flying){ it.vy-=19*dt; it.x+=it.vx*dt; it.y+=it.vy*dt; it.z+=it.vz*dt;
+      const fy=floorAt(it.x,it.z,it.y)+.3;
+      if(it.y<=fy){ it.y=fy; it.vy*=-.35; it.vx*=.6; it.vz*=.6;
+        if(Math.hypot(it.vx,it.vz)<.6&&Math.abs(it.vy)<1){it.flying=false;it.vx=it.vy=it.vz=0;} }
+      hitCheck(i);
+      if(it.y<-24){ const sp=spawnSpot(); it.x=sp.x;it.y=.6;it.z=sp.z;it.vx=it.vy=it.vz=0;it.flying=false;it.thrower=null; }
+    } else { const fy=floorAt(it.x,it.z,it.y)+.3;
+      if(it.y>fy+.05){ it.vy-=19*dt; it.y+=it.vy*dt; if(it.y<=fy){it.y=fy;it.vy=0;} }
+      if(it.y<-24){ const sp=spawnSpot(); it.x=sp.x;it.y=.6;it.z=sp.z;it.vy=0; } }
+  }
+}
+function itemAction(){ if(dead||paused||!items.length)return;
+  const mine=items.findIndex(it=>it&&it.held===net.self);
+  if(mine>=0){ const f=fwd(P.yaw);
+    if(net.host)throwItem(mine,f[0],f[1],net.self);
+    else if(net.sendIact)net.sendIact(["throw",mine,+f[0].toFixed(2),+f[1].toFixed(2)]);
+    return; }
+  let best=-1,bd=2.2;
+  for(let i=0;i<items.length;i++){ const it=items[i]; if(!it||it.held||it.flying)continue;
+    const d=Math.hypot(it.x-P.x,it.z-P.z); if(d<bd){bd=d;best=i;} }
+  if(best>=0){ if(net.host)items[best].held=net.self; else if(net.sendIact)net.sendIact(["grab",best]); }
+}
+function drawItems(dt){ if(!items.length)return;
+  for(let i=0;i<items.length;i++){ const it=items[i]; if(!it)continue;
+    if(!net.host){ const k=Math.min(1,dt*16); it.x+=(it.tx-it.x)*k; it.y+=(it.ty-it.y)*k; it.z+=(it.tz-it.z)*k; }
+    const c=ITEMCOL[i%ITEMCOL.length];
+    draw({pos:[it.x,it.y,it.z],size:[.5,.5,.5],color:c,emis:[c[0]*.3,c[1]*.3,c[2]*.3],rot:[.4,performance.now()*.0012+i,0]});
+  }
 }
 function peerCollide(){
   if(dead)return;
@@ -1678,6 +1761,8 @@ const QUESTIONS=[
 const OPTCOL=[[.82,.30,.28],[.28,.54,.86],[.92,.74,.22],[.36,.72,.44]];
 const OPTCLS=["rd","cy","am","gn"], OPTLET=["A","B","C","D"];
 const LETCOL=["#e0564e","#4f97e6","#e6b833","#5cc07a"];
+let gamePhase="idle";
+function showWait(b){const e=document.getElementById("waitMsg");if(e)e.classList.toggle("on",!!b);}
 let qOrder=[], round=0, curQText="", curQOpts=null, curLetters=[], curCorrect=-1, curPoints=100, qActive=false, qLeft=0, qDur=0, revealed=true, qTimer=null, qDeadline=0;
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
@@ -1706,6 +1791,7 @@ function applyQuestion(text,opts,letters,dur){
   if(dead){dead=false;document.getElementById("dead").classList.remove("on");
     P.x=SP.x;P.z=SP.z;P.y=3;P.vy=0;}          /* sólo quien cayó vuelve a la base; el resto se queda */
   showQPanel(text,opts);
+  gamePhase="play";showWait(false);
   qActive=true;qLeft=dur;qDur=dur;qDeadline=performance.now()+dur*1000;revealed=false;
 }
 function onQuestion(text,opts,letters,dur){curCorrect=-1;applyQuestion(text,opts,letters,dur);}
@@ -1731,6 +1817,7 @@ function revealRound(correct){
   if(myAns===correct){myScore+=curPoints;if(net.sendScore)net.sendScore([net.name,myScore]);}
   paintScores();
   const f=document.getElementById("qfill");if(f)f.style.width="0%";
+  gamePhase="wait";showWait(true);
 }
 function onReveal(correct){revealRound(correct);}
 function doReveal(){
@@ -1753,6 +1840,8 @@ window.__t={
   quiz(){return{x:+P.x.toFixed(2),y:+P.y.toFixed(2),z:+P.z.toFixed(2),
     on:platUnder(P.x,P.z),ground:P.onGround,plats:PLAT.map(pl=>({id:pl.id,gone:pl.gone}))};},
   drop(id){caer(id);},
+  items(){return items.map(it=>it?{x:+it.x.toFixed(1),y:+it.y.toFixed(1),z:+it.z.toFixed(1),held:it.held||null,fly:it.flying}:null);},
+  e(){itemAction();},
   join(nm,room,host){let h=!!host,n=nm;if((nm||"").toLowerCase()==="messiadmin"){h=true;n="Presentador";}startNet(n,(room||"").toLowerCase(),h);},
   ask(d){nextQuestion(d);},
   reveal(){doReveal();},
