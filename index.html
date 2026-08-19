@@ -171,7 +171,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 12 · torrent+turn</div>
+  <div id="build">build 13 · torrent+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -181,6 +181,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
     <span><kbd>W A S D</kbd>caminar</span>
     <span><kbd>ratón</kbd>mirar</span>
     <span><kbd>Espacio</kbd>saltar</span>
+    <span><kbd>E</kbd>agarrar / lanzar</span>
     <span><kbd>M</kbd>silencio</span>
   </div>
 
@@ -233,7 +234,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 12 (items + espera)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 13 (items con textura)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -451,6 +452,19 @@ function buildTextures(){
   });
 
   /* cielo nocturno: estrellas de varios brillos y algo de nube tenue */
+  TX.item=tex(256,256,(x,w,h)=>{
+    x.fillStyle="#eef3fb";x.fillRect(0,0,w,h);                 /* base clara: se tiñe con el color del item */
+    x.strokeStyle="rgba(18,28,48,.55)";x.lineWidth=14;x.strokeRect(10,10,w-20,h-20);
+    const n=6,c=(w-44)/n;                                       /* rejilla de datos */
+    for(let i=0;i<n;i++)for(let j=0;j<n;j++){
+      x.fillStyle=((i+j)%2)?"rgba(18,28,48,.14)":"rgba(18,28,48,.04)";
+      x.fillRect(22+i*c+2,22+j*c+2,c-4,c-4);
+    }
+    x.strokeStyle="rgba(12,18,34,.85)";x.lineWidth=15;          /* candado */
+    x.strokeRect(w*.36,h*.48,w*.28,h*.22);
+    x.beginPath();x.arc(w*.5,h*.48,w*.1,Math.PI,0);x.stroke();
+    x.fillStyle="rgba(12,18,34,.85)";x.beginPath();x.arc(w*.5,h*.585,w*.03,0,7);x.fill();
+  });
   TX.sky=tex(512,512,(x,w,h)=>{
     /* plano a propósito: con degradado se ven las aristas del cubo, porque cada
        cara lo orienta distinto */
@@ -1633,14 +1647,14 @@ function holderPos(id){ if(id===net.self)return {x:P.x,y:P.y,z:P.z,yaw:P.yaw};
   const pr=peers[id]; return pr?{x:pr.x,y:pr.y,z:pr.z,yaw:pr.yaw}:null; }
 function throwItem(i,dx,dz,thrower){ const it=items[i]; if(!it)return;
   it.held=null;it.flying=true;it.thrower=thrower;it.vx=dx*10;it.vz=dz*10;it.vy=4.8; }
-function applyKnock(kx,kz){ if(dead)return; P.knockX=(P.knockX||0)+kx; P.knockZ=(P.knockZ||0)+kz; }
+function applyKnock(kx,kz){ if(dead)return; P.knockX=(P.knockX||0)+kx; P.knockZ=(P.knockZ||0)+kz; if(P.onGround){P.vy=2.6;P.onGround=false;} }
 function hitCheck(i){ const it=items[i]; if(Math.hypot(it.vx,it.vz)<3.5)return;
   const T=[{id:net.self,x:P.x,y:P.y,z:P.z}];
   for(const id in peers)T.push({id:id,x:peers[id].x,y:peers[id].y,z:peers[id].z});
   for(let j=0;j<T.length;j++){ const t=T[j]; if(t.id===it.thrower)continue;
     if(Math.abs(it.y-(t.y+0.9))>1.3)continue;
     const dx=t.x-it.x,dz=t.z-it.z; if(dx*dx+dz*dz<0.85*0.85){
-      const d=Math.hypot(dx,dz)||1, kx=dx/d*5.5, kz=dz/d*5.5;
+      const d=Math.hypot(dx,dz)||1, kx=dx/d*8.5, kz=dz/d*8.5;
       if(t.id===net.self)applyKnock(kx,kz); else if(net.sendKnock)net.sendKnock([t.id,+kx.toFixed(2),+kz.toFixed(2)]);
       it.flying=false;it.vx*=.15;it.vz*=.15;it.thrower=null; break; } }
 }
@@ -1675,7 +1689,8 @@ function drawItems(dt){ if(!items.length)return;
   for(let i=0;i<items.length;i++){ const it=items[i]; if(!it)continue;
     if(!net.host){ const k=Math.min(1,dt*16); it.x+=(it.tx-it.x)*k; it.y+=(it.ty-it.y)*k; it.z+=(it.tz-it.z)*k; }
     const c=ITEMCOL[i%ITEMCOL.length];
-    draw({pos:[it.x,it.y,it.z],size:[.5,.5,.5],color:c,emis:[c[0]*.3,c[1]*.3,c[2]*.3],rot:[.4,performance.now()*.0012+i,0]});
+    draw({pos:[it.x,it.y,it.z],size:[.55,.55,.55],color:c,tex:TX.item,tile:[1,1],
+      emis:[c[0]*.18,c[1]*.18,c[2]*.18],rot:[.35,performance.now()*.0012+i,0]});
   }
 }
 function peerCollide(){
