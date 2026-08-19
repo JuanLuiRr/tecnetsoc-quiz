@@ -101,7 +101,13 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
 
 #build{position:absolute;right:.7rem;bottom:.5rem;font-family:var(--data);font-size:.62rem;color:var(--graphite);opacity:.55;z-index:9}
-#connect{position:absolute;inset:0;display:none;place-items:center;z-index:26;background:rgba(3,5,12,.78);
+#connect .cbox{text-align:center}
+#connect .spin{width:46px;height:46px;margin:0 auto 1rem;border-radius:50%;
+  border:3px solid rgba(103,232,249,.2);border-top-color:var(--cyan);animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+#connect #connStatus{font-family:var(--machine);letter-spacing:.14em;text-transform:uppercase;color:var(--cyan);font-size:1rem}
+#connect .csub{font-family:var(--machine);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--graphite);margin-top:.5rem}
+#connect{position:absolute;inset:0;display:none;place-items:center;z-index:26;background:rgba(3,5,12,.86);
   font-family:var(--machine);letter-spacing:.2em;text-transform:uppercase;color:var(--cyan);text-align:center;padding:2rem}
 #connect.on{display:grid}
 #scores{position:absolute;right:1rem;top:4.6rem;width:13rem;background:rgba(6,10,20,.82);
@@ -160,7 +166,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 
   <div class="hud" id="cross"></div>
   <div class="hud" id="brand">Tecnet<i>SOC</i><span>Quiz de plataformas</span></div>
-  <div id="build">build 8 · torrent+turn</div>
+  <div id="build">build 9 · torrent+turn</div>
   <div class="hud" id="top"><div class="n" id="topN">MOMENTO 00 / 13</div><div class="t" id="topT">La casa dormida</div></div>
   <div class="hud" id="prompt"></div>
   <div class="hud" id="muteTag">🔇 sin sonido</div>
@@ -188,7 +194,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
   <div id="card"><span id="cardT"></span></div>
   <div id="flash"></div>
 
-  <div class="hud" id="connect"><div>Conectando a la sala…<br><span style="font-size:.7em;color:var(--graphite)">(unos segundos)</span></div></div>
+  <div class="hud" id="connect"><div class="cbox"><div class="spin"></div><div id="connStatus">Conectando…</div><div class="csub">tarda unos segundos</div></div></div>
   <aside id="scores"><h3>Puntos</h3><ol id="scoreList"></ol></aside>
   <div id="diag"><h3>Diagnóstico de red <span id="diagX">✕</span></h3><div id="diagBody">…</div>
     <div class="dtip">Pulsa <b>I</b> para abrir/cerrar. Mándale una foto de esto a quien no conecte.</div></div>
@@ -222,7 +228,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 <script>
 "use strict";
 (function(){
-console.log("%cTecnetSOC quiz — build 8 (torrent+TURN)","color:#67e8f9");
+console.log("%cTecnetSOC quiz — build 9 (pantalla de carga)","color:#67e8f9");
 
 /* ═══════════ matrices ═══════════ */
 function m4(){return new Float32Array([1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1]);}
@@ -1553,9 +1559,24 @@ async function startNet(name,room,host){
     setInterval(function(){ if(!net.on)return;
       if(net.sendHi)net.sendHi([net.name,net.color]);
       if(net.sendScore)net.sendScore([net.name,myScore]); },4000);
-    document.getElementById("connect").classList.remove("on");
+    startConnectWatch();
     if(host)document.getElementById("hostbar").classList.add("on");
   }catch(e){document.getElementById("connect").innerHTML="<div>No se pudo conectar: "+e.message+"</div>";}
+}
+let connTimer=null, connT=0;
+function hideConnect(){ if(connTimer){clearInterval(connTimer);connTimer=null;}
+  document.getElementById("connect").classList.remove("on"); }
+function startConnectWatch(){
+  connT=0; const st=document.getElementById("connStatus");
+  if(connTimer)clearInterval(connTimer);
+  connTimer=setInterval(function(){
+    connT+=0.5;
+    const n=Object.keys(peers).length;
+    if(n>0){ if(st)st.textContent="¡Conectado!"; setTimeout(hideConnect,350); return; }
+    if(net.host&&connT>=3){ hideConnect(); return; }   /* el presentador arranca aunque esté solo */
+    if(connT>=20){ hideConnect(); return; }             /* red lenta: no bloquear */
+    if(st)st.textContent=net.host?"Preparando la sala…":("Buscando la partida… "+Math.floor(connT)+"s");
+  },500);
 }
 let posAcc=0;
 function netTick(dt){
