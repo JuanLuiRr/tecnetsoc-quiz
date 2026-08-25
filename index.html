@@ -188,6 +188,7 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
   #tut.next #tutNext{display:block}
   #tut .tbanner.praise{border-color:#3ad07a;background:rgba(6,22,13,.82)}
   #tut .tbanner.praise .tbig{color:#7fe6a0}
+  #qtext .qwarm{display:inline-block;font-family:var(--machine);font-size:.58rem;letter-spacing:.13em;text-transform:uppercase;color:#f0b429;border:1px solid #f0b429;border-radius:.4em;padding:.14em .5em;margin-right:.45em;vertical-align:middle}
 </style>
 
 <div id="app">
@@ -1765,7 +1766,7 @@ async function startNet(name,room,host){
       if(pr.el)pr.el.querySelector("span").textContent=d[0];paintScores();});
     gPos((d,id)=>{const pr=peers[id];if(!pr)return;pr.tx=d[0];pr.ty=d[1];pr.tz=d[2];pr.tyaw=d[3];});
     gSc((d,id)=>{const pr=peers[id];if(!pr)return;pr.name=d[0];pr.score=d[1];paintScores();});
-    gQ((d,id)=>{if(net.host)return;onQuestion(d[0],d[1],d[2],d[3]);});
+    gQ((d,id)=>{if(net.host)return;onQuestion(d[0],d[1],d[2],d[3],d[4]);});
     gRev((d,id)=>{if(net.host)return;onReveal(d[0],d[1]);});
     r.onPeerJoin(id=>{
       addPeer(id);                                       /* entra ya al marcador; hi/pos lo completan */
@@ -1774,13 +1775,12 @@ async function startNet(name,room,host){
       if(net.host&&net.sendPh)net.sendPh([gamePhase],id);   /* dile en qué fase va la partida */
       if(net.host&&qActive&&!revealed&&curQOpts){        /* pregunta en curso -> ponerlo al día */
         const rem=Math.max(2,(qDeadline-performance.now())/1000);
-        setTimeout(function(){ if(net.host&&qActive&&!revealed)net.sendQ([curQText,curQOpts,curLetters,rem],id); },700);
+        setTimeout(function(){ if(net.host&&qActive&&!revealed)net.sendQ([curQText,curQOpts,curLetters,rem,curPoints],id); },700);
       }
     });
     r.onPeerLeave(id=>dropPeer(id));
     net.on=true;
     if(net.host)initItems();
-    setTimeout(function(){ if(net.on&&Object.keys(peers).length===0&&!diagOn)toggleDiag(); },15000);
     setInterval(function(){ if(!net.on)return;
       if(net.sendHi)net.sendHi([net.name,net.color]);
       if(net.sendScore)net.sendScore([net.name,myScore]); },4000);
@@ -1967,33 +1967,37 @@ function paintScores(){
 
 /* ═══════════ preguntas y puntuación ═══════════ */
 const QUESTIONS=[
-  {q:"¿Qué le hace exactamente el ransomware a tus archivos?",
-   o:["No los toca","Los borra para siempre","Les cambia el candado y ya no abren","Los hace más grandes"],c:2},
-  {q:"Si el ransomware ya cifró todo, ¿qué te devuelve el trabajo?",
-   o:["El antivirus","Restaurar desde el respaldo","Reiniciar el equipo","Pagar el rescate"],c:1},
-  {q:"¿Cada cuánto conviene que se haga la copia de seguridad?",
-   o:["Una vez al año","Solo cuando algo falla","De forma continua y automática","Nunca"],c:2},
-  {q:"En Recuperación ante Desastres, la segunda copia del sistema…",
-   o:["Se crea después del desastre","Ya está lista y esperando","No existe","La hace el cliente a mano"],c:1},
-  {q:"¿Qué es un «failover»?",
-   o:["Apagar todo","Pasar a la copia que ya estaba lista","Borrar los datos","Un tipo de virus"],c:1},
-  {q:"¿Y el «failback»?",
-   o:["Volver a la casa original ya reparada","Crear un respaldo nuevo","Rendirse","Pagar el rescate"],c:0},
-  {q:"¿Quién es Neo en el portal TecnetSOC?",
-   o:["Un antivirus","El asistente que te explica con tus datos","Un tipo de respaldo","El jefe de soporte"],c:1},
-  {q:"Un buen respaldo, antes de restaurarlo, debe estar…",
-   o:["Comprimido","Sano y verificado","Escondido","Impreso"],c:1},
-  {q:"¿Por qué contener el ataque no basta?",
-   o:["Porque no repara lo que ya se cifró","Porque es caro","Porque tarda mucho","Sí basta"],c:0},
-  {q:"La mejor señal de que le ganaste al ransomware es…",
-   o:["Que lo detectaste","Que el cliente vuelve a trabajar","Que llamaste a la policía","Que apagaste el servidor"],c:1}
+  {warm:true,q:"¿Cuántos años cumplió TecnetOne este aniversario?",
+   o:["8","6","10","7"],c:0},
+  {warm:true,q:"¿Quién es la persona favorita en TecnetOne?",
+   o:["Gustavo","Neo","Alexander","Adán"],c:3},
+  {q:"El ransomware entra a la casa. ¿Qué hace con tus cosas?",
+   o:["Se las roba y se las lleva","Les cambia el candado a todo","Las rompe todas","Las vende por internet"],c:1},
+  {q:"El daño empezó el martes. ¿De qué día pides la copia?",
+   o:["La del mismo martes","La del miércoles","La más nueva, siempre","La del lunes"],c:3},
+  {q:"¿Cuándo se gana realmente un respaldo?",
+   o:["El día del ataque","Cuando el cliente paga el rescate","En los días aburridos, cuando la copia se hace sola","Cuando llega el técnico"],c:2},
+  {q:"Tembló y la casa quedó inservible. ¿Qué tenía la empresa que siguió trabajando?",
+   o:["Mucha suerte","Otra casa idéntica, lista y ensayada","Un buen seguro","Empleados muy rápidos"],c:1},
+  {q:"¿Qué te devuelve el respaldo y qué te devuelve la recuperación ante desastres?",
+   o:["Los archivos / la operación completa","La operación / los archivos","Las dos cosas son lo mismo","El dinero / los archivos"],c:0},
+  {q:"¿El simulacro de recuperación afecta la operación del cliente?",
+   o:["Sí, hay que hacerlo de madrugada","Sí, se detiene todo una hora","Solo si sale mal","No, para eso está hecho"],c:3},
+  {q:"Hoy al cliente no le llegó ninguna alerta. ¿Qué significa?",
+   o:["El sistema se cayó","Fue un día tranquilo: no hubo nada que alertar","Nos quedamos dormidos","Se venció su contrato"],c:1},
+  {q:"¿Qué es lo primero que dice la pantalla de informes del portal?",
+   o:["Bienvenido de nuevo","Todo bajo control","Evidencia, no suposiciones","Sin novedades"],c:2},
+  {q:"Le preguntas a Neo algo que no tiene documentado. ¿Qué hace?",
+   o:["Se inventa una respuesta convincente","Cambia de tema","Te dice que no lo tiene y te manda con una persona","Se reinicia"],c:2},
+  {q:"Cuando Neo te contesta algo, ¿qué trae siempre su respuesta?",
+   o:["Un folleto de ventas","Publicidad de otros productos","La fuente y la fecha de donde sacó el dato","Un chiste"],c:2}
 ];
 const OPTCOL=[[.82,.30,.28],[.28,.54,.86],[.92,.74,.22],[.36,.72,.44]];
 const OPTCLS=["rd","cy","am","gn"], OPTLET=["A","B","C","D"];
 const LETCOL=["#e0564e","#4f97e6","#e6b833","#5cc07a"];
 let gamePhase="idle";
 function showWait(b){const e=document.getElementById("waitMsg");if(e)e.classList.toggle("on",!!b);}
-let qOrder=[], round=0, curQText="", curQOpts=null, curLetters=[], curCorrect=-1, curPoints=100, qActive=false, qLeft=0, qDur=0, revealed=true, qTimer=null, qDeadline=0;
+let qOrder=[], round=0, scoredRound=0, curQText="", curQOpts=null, curLetters=[], curCorrect=-1, curPoints=100, qActive=false, qLeft=0, qDur=0, revealed=true, qTimer=null, qDeadline=0;
 
 function shuffle(a){for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));const t=a[i];a[i]=a[j];a[j]=t;}return a;}
 function makeLetters(){
@@ -2009,7 +2013,7 @@ function layoutRound(letters){
     pl.lab.hidden=true;}                        /* sin letras flotantes: solo el color */
 }
 function showQPanel(text,opts){
-  document.getElementById("qtext").textContent=text;
+  document.getElementById("qtext").innerHTML=(curPoints===0?'<span class="qwarm">Calentamiento · no suma puntos</span> ':"")+text;
   document.getElementById("qopts").innerHTML=opts.map((o,k)=>
     '<div class="'+OPTLET[k]+'"><span class="sw" style="background:'+LETCOL[k]+'"></span>'+o+'</div>').join("");
   document.getElementById("qpanel").classList.add("on");
@@ -2024,16 +2028,17 @@ function applyQuestion(text,opts,letters,dur){
   gamePhase="play";showWait(false);
   qActive=true;qLeft=dur;qDur=dur;qDeadline=performance.now()+dur*1000;revealed=false;
 }
-function onQuestion(text,opts,letters,dur){curCorrect=-1;applyQuestion(text,opts,letters,dur);}
+function onQuestion(text,opts,letters,dur,pts){curCorrect=-1;curPoints=(typeof pts==="number")?pts:100;applyQuestion(text,opts,letters,dur);}
 function nextQuestion(testDur){                       /* sólo el anfitrión */
   if(!net.host)return;
-  if(!qOrder.length)qOrder=shuffle(QUESTIONS.map((_,i)=>i));
+  if(!qOrder.length)qOrder=QUESTIONS.map((_,i)=>i);   /* orden fijo: 2 de calentamiento y luego 10 con puntos */
   round++;
   const q=QUESTIONS[qOrder[(round-1)%QUESTIONS.length]];
   const dur=testDur||Math.max(9,Math.round((18-(round-1)*1.5)*10)/10);   /* baja 1.5s por ronda, mínimo 9 */
   const letters=makeLetters();
-  curCorrect=q.c;curPoints=80+round*20;
-  if(net.sendQ)net.sendQ([q.q,q.o,letters,dur]);
+  curCorrect=q.c;
+  if(q.warm){curPoints=0;}else{scoredRound++;curPoints=80+scoredRound*20;}
+  if(net.sendQ)net.sendQ([q.q,q.o,letters,dur,curPoints]);
   applyQuestion(q.q,q.o,letters,dur);
   clearTimeout(qTimer);
   qTimer=setTimeout(function(){qTimer=null;doReveal();},dur*1000);
