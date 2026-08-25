@@ -166,6 +166,28 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 #dead .hint2{font-family:var(--machine);font-size:.66rem;letter-spacing:.14em;text-transform:uppercase;color:var(--graphite);margin-top:.9rem}
 @media (max-width:900px){#dir{width:78vw} #keys{display:none} #neo{left:1rem;right:1rem;width:auto}}
 @media (prefers-reduced-motion:reduce){#dir,#neo,#verif{transition:none}}
+  #tut{position:fixed;inset:0;z-index:28;pointer-events:none;display:none}
+  #tut.on{display:block}
+  #tut .tbanner{position:absolute;top:7%;left:50%;transform:translateX(-50%);text-align:center;max-width:min(48rem,92vw);
+    background:rgba(3,7,16,.74);border:1px solid rgba(103,232,249,.4);border-radius:1rem;padding:1.3rem 2.2rem;backdrop-filter:blur(6px)}
+  #tut .tbig{font-family:var(--data);font-size:clamp(1.5rem,3.7vw,2.5rem);font-weight:650;color:#eaf3ff;line-height:1.12}
+  #tut .tbig b{color:var(--cyan);font-weight:650}
+  #tut .tsub{margin-top:.55rem;color:#9fc0e6;font-family:var(--data);font-size:clamp(.95rem,1.8vw,1.18rem);line-height:1.4}
+  #tut .tdots{display:flex;gap:.45rem;justify-content:center;margin-top:1.1rem}
+  #tut .tdots i{width:1.6rem;height:.3rem;border-radius:2px;background:#2a3a5a;display:block}
+  #tut .tdots i.ok{background:#3ad07a}
+  #tut .tdots i.now{background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+  #tut #tutSkip{position:absolute;bottom:2rem;left:50%;transform:translateX(-50%);pointer-events:auto;cursor:pointer;
+    font-family:var(--machine);font-size:.8rem;letter-spacing:.16em;text-transform:uppercase;
+    background:rgba(22,34,60,.72);border:1px solid #2b3d5f;color:#cfe0f5;border-radius:.6rem;padding:.7rem 1.5rem}
+  #tut #tutSkip:hover{border-color:var(--cyan);color:#fff}
+  #tut #tutNext{position:absolute;top:33%;left:50%;transform:translateX(-50%);pointer-events:auto;cursor:pointer;display:none;
+    font-family:var(--machine);font-size:.95rem;letter-spacing:.14em;text-transform:uppercase;font-weight:700;
+    background:var(--cyan);color:#06121f;border:0;border-radius:.6rem;padding:.85rem 2.1rem}
+  #tut #tutNext:hover{background:#8fe9ff}
+  #tut.next #tutNext{display:block}
+  #tut .tbanner.praise{border-color:#3ad07a;background:rgba(6,22,13,.82)}
+  #tut .tbanner.praise .tbig{color:#7fe6a0}
 </style>
 
 <div id="app">
@@ -218,6 +240,12 @@ button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
     <button class="go" id="respBtn" type="button">Volver a la base</button>
     <div class="hint2">o pulsa Espacio</div>
   </div></div>
+
+  <div id="tut">
+    <div class="tbanner"><div class="tbig" id="tutBig"></div><div class="tsub" id="tutSub"></div><div class="tdots" id="tutDots"></div></div>
+    <button id="tutNext" type="button">Siguiente →</button>
+    <button id="tutSkip" type="button">Presiona Enter para saltar el tutorial</button>
+  </div>
 
   <div id="gate">
     <div class="card">
@@ -1306,6 +1334,7 @@ const keys=Object.create(null);
 let locked=false,paused=true,fly=false,dead=false,joined=false;
 const gate=document.getElementById("gate");
 function die(){
+  if(TUT.active)return;
   if(dead)return;dead=true;
   if(myScore>0){ myScore=Math.max(0,myScore-50);      /* caerse cuesta 50 (nunca negativo) */
     if(net.sendScore)net.sendScore([net.name,myScore]); paintScores(); }
@@ -1319,34 +1348,152 @@ function respawn(){
   cv.requestPointerLock&&cv.requestPointerLock();
 }
 document.getElementById("respBtn").addEventListener("click",e=>{e.stopPropagation();respawn();});
-function enter(){
-  let nm=(document.getElementById("nm").value||"").trim().slice(0,14)||("Jugador"+(10+Math.floor(Math.random()*89)));
-  const room=((document.getElementById("room").value||"tecnetsoc").trim()||"tecnetsoc").toLowerCase();
-  const SECRET="messiadmin";
-  let host=false;
-  if(nm.toLowerCase()===SECRET){host=true;nm="Presentador";}   /* el nombre secreto te vuelve anfitrión */
-  audioInit();gate.classList.add("off");paused=false;
+/* ═══════════ tutorial guiado (antes de conectar) ═══════════ */
+const TUT={active:false,done:false,step:0,stepT:0,t:0,jumped:false,threw:false,mouseMoved:false,
+  praising:false,praiseT:0,pressed:{},sx:0,sz:0,
+  box:{x:0,y:.6,z:-10.5,held:false,flying:false,vx:0,vy:0,vz:0},joinArgs:null};
+const TUT_PRAISE=["✓ ¡Excelente!","✓ ¡Muy bien!","✓ ¡Perfecto!","✓ ¡Genial!","✓ ¡Lo lograste!"];
+const TUT_STEPS=[
+ {info:true,big:"Bienvenido al tutorial 👋",sub:"Te vamos a enseñar a moverte en el juego, paso a paso. Cuando quieras, dale a Siguiente."},
+ {info:true,big:"Recuerda: <b>Esc</b> pausa el juego",sub:"En cualquier momento puedes pulsar Esc para pausar y soltar el ratón. Para volver, haz clic en la pantalla."},
+ {look:true,big:"Usa el <b>ratón</b> para mover la vista",sub:"Muévelo a un lado y luego al otro para mirar alrededor.",chk:()=>TUT.lookedA&&TUT.lookedB},
+ {big:"Pulsa <b>W</b> para caminar hacia adelante",sub:"Mantén W un momento y avanza.",chk:()=>tutMoved("w")},
+ {big:"Pulsa <b>A</b> para moverte a la izquierda",sub:"Un pasito a la izquierda.",chk:()=>tutMoved("a")},
+ {big:"Pulsa <b>S</b> para retroceder",sub:"Un pasito hacia atrás.",chk:()=>tutMoved("s")},
+ {big:"Pulsa <b>D</b> para moverte a la derecha",sub:"Un pasito a la derecha.",chk:()=>tutMoved("d")},
+ {big:"Pulsa <b>Espacio</b> para saltar",sub:"Da un salto en tu lugar.",chk:()=>TUT.jumped},
+ {big:"Reto: salta de plataforma en plataforma",sub:"Ve al frente y cruza saltando los huecos hasta la plataforma verde del otro lado.",goal:true,chk:()=>P.z<-9},
+ {big:"Agarra la caja con <b>E</b> y púlsala otra vez para <b>aventarla</b>",sub:"Con E la levantas; con E de nuevo la lanzas. En la partida puedes tumbar a otros jugadores aventándoles el objeto.",chk:()=>TUT.threw},
+ {final:true,big:"¡Listo! Ya sabes jugar 🎉",sub:"Uniéndote a la partida…",chk:()=>false},
+];
+function tutMoved(k){ return !!TUT.pressed[k] && Math.hypot(P.x-TUT.sx,P.z-TUT.sz)>0.5; }
+function buildTutorialWorld(){
+  statics=[];dyn=[];labels=[];H={};PLAT=[];labRoot.textContent="";
+  S({pos:[0,-40,-4],size:[560,.6,560],color:[.16,.02,.03],emis:[.05,0,0]});
+  S({pos:[0,-.35,8],size:[13,.7,13],color:[.16,.20,.28],walk:true,tex:TX.concrete,tile:[4,4]});
+  S({pos:[0,.03,8],size:[12.4,.1,12.4],color:[.22,.28,.38],walk:true,tex:TX.tile,tile:[4,4]});
+  const stone=(z,w)=>{ S({pos:[0,-.35,z],size:[w,.7,w],color:[.18,.22,.3],walk:true,tex:TX.concrete,tile:[1,1]});
+    S({pos:[0,.03,z],size:[w-.4,.1,w-.4],color:[.24,.3,.4],walk:true,tex:TX.tile,tile:[1,1]}); };
+  stone(-1.5,3.4); stone(-6,3.4);
+  S({pos:[0,-.35,-11],size:[7,.7,4.5],color:[.16,.26,.24],walk:true,tex:TX.concrete,tile:[2,1]});
+  S({pos:[0,.03,-11],size:[6.4,.1,3.9],color:[.22,.34,.3],walk:true,tex:TX.tile,tile:[2,1]});
+  buildLabelEls();
+}
+function updateTutUI(){
+  const st=TUT_STEPS[TUT.step];if(!st)return;
+  document.getElementById("tutBig").innerHTML=st.big;
+  document.getElementById("tutSub").textContent=st.sub;
+  document.getElementById("tut").classList.toggle("next",!!st.info);
+  const ban=document.querySelector("#tut .tbanner");if(ban)ban.classList.remove("praise");
+  const dots=document.getElementById("tutDots");dots.innerHTML="";
+  for(let i=0;i<TUT_STEPS.length;i++){const d=document.createElement("i");
+    if(i<TUT.step)d.className="ok";else if(i===TUT.step)d.className="now";dots.appendChild(d);}
+}
+function showPraise(){
+  document.getElementById("tutBig").innerHTML=TUT_PRAISE[TUT.step%TUT_PRAISE.length];
+  document.getElementById("tutSub").textContent="Lo hiciste muy bien. Vamos al siguiente…";
+  document.getElementById("tut").classList.remove("next");
+  const ban=document.querySelector("#tut .tbanner");if(ban)ban.classList.add("praise");
+}
+function tutGo(next){
+  TUT.step=next;TUT.stepT=0;TUT.jumped=false;TUT.threw=false;TUT.mouseMoved=false;
+  TUT.pressed={};TUT.sx=P.x;TUT.sz=P.z;TUT.yaw0=P.yaw;TUT.lookedA=false;TUT.lookedB=false;
+  const st=TUT_STEPS[next];
+  if(st&&!st.info&&!st.final&&!locked){ cv.requestPointerLock&&cv.requestPointerLock(); }
+  updateTutUI();
+  if(st&&st.final)setTimeout(finishTutorial,2000);
+}
+function startTutorial(nm,room,host){
+  TUT.joinArgs=[nm,room,host];TUT.active=true;TUT.step=0;TUT.stepT=0;TUT.t=0;
+  TUT.jumped=false;TUT.threw=false;TUT.mouseMoved=false;TUT.praising=false;TUT.pressed={};
+  TUT.box={x:0,y:.6,z:-10.5,held:false,flying:false,vx:0,vy:0,vz:0};
+  buildTutorialWorld();
+  P.x=0;P.y=3;P.z=10;P.yaw=0;P.pitch=-.12;P.vy=0;dead=false;
+  TUT.sx=P.x;TUT.sz=P.z;TUT.yaw0=P.yaw;TUT.lookedA=false;TUT.lookedB=false;
+  paused=false;
+  document.getElementById("dead").classList.remove("on");
+  document.getElementById("tut").classList.add("on");
+  document.getElementById("scores").style.visibility="hidden";
+  updateTutUI();
+  /* sin pointer lock al inicio: el ratón queda libre para el botón Siguiente */
+}
+function finishTutorial(){
+  if(!TUT.active)return;
+  TUT.active=false;TUT.done=true;
+  document.getElementById("tut").classList.remove("on");
+  const a=TUT.joinArgs;doJoin(a[0],a[1],a[2]);
+}
+function skipTutorial(){ finishTutorial(); }
+function tutUse(){
+  const b=TUT.box;
+  if(b.held){ const f=fwd(P.yaw); b.held=false;b.flying=true;
+    b.vx=f[0]*10;b.vz=f[1]*10;b.vy=4.8; TUT.threw=true; }
+  else if(!b.flying&&Math.hypot(b.x-P.x,b.z-P.z)<2.3){ b.held=true; }
+}
+function tutStep(dt){
+  TUT.t+=dt;TUT.stepT+=dt;
+  const b=TUT.box;
+  if(b.held){ const f=fwd(P.yaw); b.x=P.x+f[0]*.6;b.z=P.z+f[1]*.6;b.y=P.y+1.05; }
+  else if(b.flying){ b.vy-=19*dt; b.x+=b.vx*dt;b.y+=b.vy*dt;b.z+=b.vz*dt;
+    const fy=floorAt(b.x,b.z,b.y)+.3;
+    if(b.y<=fy){ b.y=fy; b.vy*=-.35; b.vx*=.6; b.vz*=.6;
+      if(Math.hypot(b.vx,b.vz)<.6&&Math.abs(b.vy)<1){b.flying=false;b.vx=b.vy=b.vz=0;} }
+    if(b.y<-24){ b.x=0;b.y=.6;b.z=-10.5;b.vx=b.vy=b.vz=0;b.flying=false; } }
+  if(P.y<-6){ P.x=0;P.z=10;P.y=3;P.vy=0; }
+  if(TUT.praising){ TUT.praiseT+=dt; if(TUT.praiseT>1.5){ TUT.praising=false; tutGo(TUT.step+1); } return; }
+  const st=TUT_STEPS[TUT.step];
+  if(!st||st.info||st.final)return;
+  if(st.look){ const dy=P.yaw-TUT.yaw0; if(dy>0.45)TUT.lookedA=true; if(dy<-0.45)TUT.lookedB=true; }
+  if(st.chk&&st.chk()&&TUT.stepT>.6){ TUT.praising=true;TUT.praiseT=0;showPraise(); }
+}
+function drawTut(){
+  const st=TUT_STEPS[TUT.step];
+  if(st&&st.goal){const g=.55+Math.abs(Math.sin(TUT.t*3))*.45;
+    draw({pos:[0,.14,-11],size:[3.2,.05,3.2],color:[.2,.85,.6],emis:[.08*g,.52*g,.34*g],unlit:true});
+    draw({pos:[0,.16,-11],size:[2.1,.06,2.1],color:[.04,.1,.08],unlit:true});}
+  const b=TUT.box;
+  draw({pos:[b.x,b.y,b.z],size:[.62,.62,.62],color:C.box,tex:TX.card,tile:[1,1]});
+}
+function doJoin(nm,room,host){
+  document.getElementById("scores").style.visibility="";
+  buildWorld();
+  P.x=SP.x;P.z=SP.z;P.y=3;P.vy=0;P.pitch=-.16;
+  paused=false;
   document.getElementById("connect").classList.add("on");
   cv.requestPointerLock&&cv.requestPointerLock();
   if(cur<0)rebuildTo(0);
   joined=true;
   startNet(nm,room,host);
 }
+function enter(){
+  let nm=(document.getElementById("nm").value||"").trim().slice(0,14)||("Jugador"+(10+Math.floor(Math.random()*89)));
+  const room=((document.getElementById("room").value||"tecnetsoc").trim()||"tecnetsoc").toLowerCase();
+  const SECRET="messiadmin";
+  let host=false;
+  if(nm.toLowerCase()===SECRET){host=true;nm="Presentador";}   /* el nombre secreto te vuelve anfitrión */
+  audioInit();gate.classList.add("off");
+  if(!TUT.done){ startTutorial(nm,room,host); return; }
+  doJoin(nm,room,host);
+}
 document.getElementById("goBtn").addEventListener("click",e=>{e.stopPropagation();enter();});
+document.getElementById("tutSkip").addEventListener("click",e=>{e.stopPropagation();skipTutorial();});
+document.getElementById("tutNext").addEventListener("click",e=>{e.stopPropagation();if(TUT.active)tutGo(TUT.step+1);});
 /* el gate ya no arranca con cualquier clic: hay formulario */
 function releaseAll(){for(const k in keys)keys[k]=false;}
 document.addEventListener("pointerlockchange",()=>{
   locked=document.pointerLockElement===cv;
   if(locked){paused=false;document.getElementById("resume").classList.remove("on");}
   else if(joined&&!dead){paused=true;releaseAll();document.getElementById("resume").classList.add("on");}
+  else if(TUT.active&&TUT_STEPS[TUT.step]&&!TUT_STEPS[TUT.step].info){paused=true;releaseAll();document.getElementById("resume").classList.add("on");}
 });
 document.getElementById("resume").addEventListener("click",function(){cv.requestPointerLock&&cv.requestPointerLock();});
 addEventListener("blur",releaseAll);
-addEventListener("mousemove",e=>{ if(!locked)return;
-  P.yaw-=e.movementX*.0022;P.pitch=Math.max(-1.3,Math.min(1.3,P.pitch-e.movementY*.0022)); });
+addEventListener("mousemove",e=>{ if(TUT.active)TUT.mouseMoved=true; if(!locked)return;
+  P.yaw-=e.movementX*.0022;P.pitch=Math.max(-1.3,Math.min(1.3,P.pitch-e.movementY*.0022)); if(TUT.active)TUT.mouseMoved=true; });
 addEventListener("keydown",e=>{
   const k=e.key.toLowerCase();keys[k]=true;
   if(k===" "||k==="arrowleft"||k==="arrowright"||k==="arrowup"||k==="arrowdown")e.preventDefault();
+  if(TUT.active){ TUT.pressed[k]=true; if(k==="enter")skipTutorial(); if(k==="e")tutUse(); return; }
   if(paused)return;
   if(dead){if(k===" "||k==="enter")respawn();return;}
   if((k==="enter"||k==="arrowright")&&net.host)nextQuestion();
@@ -1443,7 +1590,7 @@ function frame(now){
       if(keys[" "])P.y+=9.5*dt;
       if(keys.shift)P.y=Math.max(.2,P.y-9.5*dt);
       P.vy=0;
-    } else if(keys[" "]&&P.onGround){P.vy=6.6;P.onGround=false;}
+    } else if(keys[" "]&&P.onGround){P.vy=6.6;P.onGround=false;if(TUT.active)TUT.jumped=true;}
   }
   if(!camFly&&!fly&&!dead){          /* ni volando ni muerto */
     P.vy-=19*dt;P.y+=P.vy*dt;
@@ -1504,6 +1651,7 @@ function frame(now){
 
   for(let i=0;i<statics.length;i++)if(!statics[i].hidden)draw(statics[i]);
   for(let i=0;i<dyn.length;i++)draw(dyn[i]);
+  if(TUT.active){tutStep(dt);drawTut();}
   /* la copia no es magia: alguien va, la toma y la lleva */
   if(H.labRep)H.labRep.hidden=!replica;
   if(H.labRaro)H.labRaro.hidden=copia.igualado||!replica;
